@@ -1,53 +1,70 @@
 import { HexCard, HexType } from './types';
 
-export const HEX_DEFINITIONS: Record<HexType, { name: string; subtitle: string; description: string; image: string }> = {
+export const HEX_DEFINITIONS: Record<
+  HexType,
+  {
+    name: string;
+    subtitle: string;
+    description: string;
+    image: string;
+    disasterPunishment: HexCard['disasterPunishment'];
+  }
+> = {
   hanahaki: {
     name: 'HANAHAKI (Hoa Độc Thấu Tâm)',
     subtitle: 'Lời nguyền buồng phổi nở hoa hồng',
-    description: 'Dây leo hoa hồng trồi lên từ khí quản bóp nghẹt lồng ngực. Mọi thao tác bào chế thuốc giải đều bị đau đớn cản trở.',
+    description: 'Dây leo hoa hồng trồi lên từ khí quản bóp nghẹt lồng ngực. [Thảm họa]: Nạn nhân phải bỏ 1 lá bài ngẫu nhiên trên tay.',
     image: '/assets/games/hex-effects/hanahaki.jpg',
+    disasterPunishment: 'DISCARD_1',
   },
   polymelia: {
     name: 'POLYMELIA (Dị Tật Đa Chi)',
     subtitle: 'Lời nguyền quái thai mọc thêm tay',
-    description: 'Cơ thể đột biến mọc thêm 6 cánh tay gớm ghiếc mất kiểm soát. Kẻ gieo bùa được tước đoạt dược liệu từ tay nạn nhân!',
+    description: 'Cơ thể đột biến mọc thêm 6 cánh tay gớm ghiếc. [Thảm họa]: Người kích hoạt cướp 1 lá bài ngẫu nhiên trên tay nạn nhân.',
     image: '/assets/games/hex-effects/polymelia.jpg',
+    disasterPunishment: 'STEAL_1',
   },
   whisper_war: {
     name: 'WHISPER WAR (Tiếng Thì Thầm Tà Thuật)',
     subtitle: 'Oán linh xì xào trong tâm trí',
-    description: 'Những giọng nói ma quái từ cõi âm xúi giục tâm can, làm đảo lộn suy nghĩ và cản trở việc bào chế.',
+    description: 'Giọng nói ma quái làm đảo lộn tâm trí. [Thảm họa]: Nạn nhân bị phong tỏa, KHÔNG THỂ rút bài ở đầu lượt kế tiếp.',
     image: '/assets/games/hex-effects/whisper_war.jpg',
+    disasterPunishment: 'SKIP_DRAW',
   },
   toad_skin: {
     name: 'TOAD SKIN (Mụn Cóc Đầm Lầy)',
     subtitle: 'Độc dịch cóc tía sần sùi phỏng rộp',
-    description: 'Làn da sần sùi mủ nhớt độc địa như da cóc tía ngâm trong vạc độc, cản trở việc cầm nắm dụng cụ độc dược.',
+    description: 'Làn da sần sùi mủ nhớt độc địa. [Thảm họa]: Nạn nhân hoảng loạn, bỏ hết bài trên tay chỉ giữ lại 1 lá.',
     image: '/assets/games/hex-effects/toad_skin.jpg',
+    disasterPunishment: 'DISCARD_TO_1',
   },
   stone_hands: {
     name: 'PETRIFICUS (Hóa Đá Cốt Tủy)',
     subtitle: 'Hóa thạch tứ chi như tượng đá',
-    description: 'Khớp ngón tay dần đặc quánh và đông cứng thành đá tảng lạnh lẽo, vô phương cử động bình thường.',
+    description: 'Khớp ngón tay đông cứng thành đá. [Thảm họa]: Nạn nhân bị hóa đá, mất 1 hành động ở lượt kế tiếp.',
     image: '/assets/games/hex-effects/petrificus.jpg',
+    disasterPunishment: 'LOSE_ACTION',
   },
   bleeding_eyes: {
     name: 'BLOOD TEARS (Lệ Huyết U Ám)',
     subtitle: 'Huyết nhãn che phủ tầm nhìn',
-    description: 'Mắt nhỏ từng giọt lệ huyết đỏ thẫm rỉ rả, làm mờ đi mọi công thức giả kim và dược điển.',
+    description: 'Mắt nhỏ lệ huyết làm mờ công thức. [Thảm họa]: Nạn nhân phải bỏ 2 lá bài ngẫu nhiên trên tay.',
     image: '/assets/games/hex-effects/blood_tears.jpg',
+    disasterPunishment: 'DISCARD_2',
   },
   rat_plague: {
     name: 'BLACK DEATH (Dịch Hạch Chuột Đen)',
     subtitle: 'Mầm bệnh hoại tử gặm nhấm',
-    description: 'Bầy chuột đen mang mầm bệnh hoại tử gặm nhấm mọi dược thảo quý giá trong kho trữ.',
+    description: 'Bầy chuột đen gặm nhấm kho dược. [Thảm họa]: Người kích hoạt Thảm họa được rút thêm 2 lá bài.',
     image: '/assets/games/hex-effects/black_death.jpg',
+    disasterPunishment: 'CASTER_DRAW_2',
   },
   rotting_breath: {
     name: 'MORTAL MIASMA (Tử Khí Hầm Mộ)',
     subtitle: 'Hơi thở nồng nặc mùi xác chết',
-    description: 'Khí độc từ nấm mồ bốc lên u ám, làm hư thối mọi bình thí nghiệm và khiến đối thủ kinh sợ.',
+    description: 'Khí độc hầm mộ làm hư thối bình thí nghiệm. [Thảm họa]: Hủy bỏ 1 lá Phương thuốc đã đặt trên Shadow của nạn nhân.',
     image: '/assets/games/hex-effects/mortal_miasma.jpg',
+    disasterPunishment: 'DESTROY_REMEDY',
   },
 };
 
@@ -196,6 +213,7 @@ export function generateHexCard(hexType: HexType, idSuffix: string): HexCard {
     subtitle: def.subtitle,
     description: def.description,
     image: def.image,
+    disasterPunishment: def.disasterPunishment,
   };
 }
 

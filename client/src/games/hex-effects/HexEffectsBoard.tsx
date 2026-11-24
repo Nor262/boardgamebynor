@@ -463,12 +463,18 @@ export function HexEffectsBoard() {
                 <div className="flex items-center gap-1.5 justify-center sm:justify-start">
                   {opp.shadow.map((slot, sIdx) => {
                     const isDeusMachina = selectedCard?.spellEffect === 'DEUS_HEX_MACHINA';
+                    const isDisasterTarget = selectedCard?.category === 'DISASTER' && slot.treatedBy === null;
+                    const oppAlreadyHasHex =
+                      selectedCard?.category === 'HEX' &&
+                      opp.shadow.some((s) => s.hex.hexType === selectedCard.hexType);
                     const canInflictWithSelected =
                       (selectedCard &&
                         selectedCard.category === 'HEX' &&
+                        !oppAlreadyHasHex &&
                         slot.treatedBy &&
                         slot.treatedBy.sideEffects?.includes(selectedCard.hexType!)) ||
-                      isDeusMachina;
+                      isDeusMachina ||
+                      isDisasterTarget;
 
                     return (
                       <div key={slot.slotId} className="flex flex-col items-center">
@@ -479,7 +485,15 @@ export function HexEffectsBoard() {
                           size="sm"
                           canInflictWithCard={canInflictWithSelected ? selectedCard : null}
                           onInflict={() => {
-                            if (isDeusMachina) {
+                            if (isDisasterTarget && selectedCard) {
+                              sendGameAction({
+                                type: 'DISASTER_TARGET',
+                                targetPlayerId: opp.playerId,
+                                targetSlotIndex: sIdx,
+                                cardId: selectedCard.id,
+                              });
+                              setSelectedCardId(null);
+                            } else if (isDeusMachina) {
                               handlePlayDeusMachina(opp.playerId, sIdx);
                             } else {
                               handleInflict(opp.playerId, sIdx);
@@ -627,8 +641,35 @@ export function HexEffectsBoard() {
         )}
       </div>
 
-      {/* 4. Bottom Zone: Player Realm (Your 4 Shadow Slots + Hand Felt Tray) */}
+      {/* 4. Bottom Zone: Player Realm (Your 4+ Shadow Slots + Hand Felt Tray) */}
       <div className="rounded-lg border border-amber-600/50 bg-gradient-to-b from-[#1b130b] via-[#120c07] to-[#070503] p-2 sm:p-2.5 flex flex-col gap-2 shadow-2xl flex-shrink-0">
+        {/* Out-of-turn Jinx Reaction Banner when targeted by a Disaster */}
+        {gameState.pendingDisaster && gameState.pendingDisaster.targetId === myState.playerId && (
+          <div className="bg-purple-950/90 border-2 border-purple-400 rounded-lg px-3 py-2 text-purple-100 text-xs font-mono flex items-center justify-between gap-3 animate-pulse shadow-[0_0_20px_rgba(168,85,247,0.5)]">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-purple-300 flex-shrink-0" />
+              <span>
+                BẠN BỊ ĐÁNH THẢM HỌA! Bạn có lá <strong>JINX</strong> — chơi ngoài lượt để phản đòn lại đối thủ?
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => sendGameAction({ type: 'RESPOND_JINX', useJinx: true })}
+                className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white font-black text-[10px] uppercase rounded border border-purple-300 cursor-pointer"
+              >
+                🎭 DÙNG JINX PHẢN ĐÒN
+              </button>
+              <button
+                type="button"
+                onClick={() => sendGameAction({ type: 'RESPOND_JINX', useJinx: false })}
+                className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-[10px] uppercase rounded border border-neutral-600 cursor-pointer"
+              >
+                CHẤP NHẬN
+              </button>
+            </div>
+          </div>
+        )}
         {/* Row 4A: Your 4 Shadow Slots (Alchemical Transmutation Pedestals) */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between px-1 flex-wrap gap-2">

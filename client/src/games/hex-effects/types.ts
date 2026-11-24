@@ -22,6 +22,7 @@ export interface HexCard {
   sideEffects?: HexType[];
   spellEffect?: 'STEAL_CARD' | 'PURIFY_REMEDY' | 'SWAP_HEX' | 'CORRUPT_SHADOW' | 'JINX_SILENCE' | 'DEUS_HEX_MACHINA';
   disasterEffect?: 'OUTBREAK' | 'POISON_MIST' | 'PANIC_DISCARD';
+  disasterPunishment?: 'DISCARD_1' | 'STEAL_1' | 'SKIP_DRAW' | 'DISCARD_TO_1' | 'LOSE_ACTION' | 'DISCARD_2' | 'CASTER_DRAW_2' | 'DESTROY_REMEDY';
   rarity?: 'common' | 'rare' | 'mythic';
 }
 
@@ -40,6 +41,8 @@ export interface PlayerHexState {
   hand: HexCard[];
   shadow: ShadowSlot[];
   isJinxed?: boolean;
+  skipNextDraw?: boolean;
+  loseNextAction?: boolean;
 }
 
 export interface HexGameEvent {
@@ -65,4 +68,11 @@ export interface HexEffectsGameState {
   winnerSummary: string | null;
   gameLogs: string[];
   recentEvent?: HexGameEvent;
+  pendingDisaster?: {
+    casterId: string;
+    targetId: string;
+    targetSlotIndex: number;
+    card: HexCard;
+    timestamp: number;
+  } | null;
 }

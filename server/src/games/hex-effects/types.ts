@@ -24,6 +24,7 @@ export interface HexCard {
   sideEffects?: HexType[];        // Nếu là REMEDY: tác dụng phụ để lại (đối thủ có thể gieo lời nguyền này lên bạn)
   spellEffect?: 'STEAL_CARD' | 'PURIFY_REMEDY' | 'SWAP_HEX' | 'CORRUPT_SHADOW' | 'JINX_SILENCE' | 'DEUS_HEX_MACHINA';
   disasterEffect?: 'OUTBREAK' | 'POISON_MIST' | 'PANIC_DISCARD';
+  disasterPunishment?: 'DISCARD_1' | 'STEAL_1' | 'SKIP_DRAW' | 'DISCARD_TO_1' | 'LOSE_ACTION' | 'DISCARD_2' | 'CASTER_DRAW_2' | 'DESTROY_REMEDY';
   rarity?: 'common' | 'rare' | 'mythic';
 }
 
@@ -40,8 +41,10 @@ export interface PlayerHexState {
   isHost: boolean;
   isReady: boolean;
   hand: HexCard[];                // Bài trên tay (được giấu đối thủ trong getPlayerView)
-  shadow: ShadowSlot[];           // Vùng Bóng Tối: gồm 4 ô Lời nguyền (công khai cho tất cả xem)
+  shadow: ShadowSlot[];           // Vùng Bóng Tối: khởi đầu 4 ô Lời nguyền (có thể tăng thêm khi bị ném Hex)
   isJinxed?: boolean;             // True nếu bị trúng bùa JINX: cấm dùng Thuốc Giải trong lượt này
+  skipNextDraw?: boolean;         // True nếu dính trừng phạt: không thể rút bài ở đầu lượt kế tiếp
+  loseNextAction?: boolean;       // True nếu dính trừng phạt: mất 1 hành động ở lượt kế tiếp
 }
 
 export interface HexGameEvent {
@@ -67,12 +70,24 @@ export interface HexEffectsGameState {
   winnerSummary: string | null;
   gameLogs: string[];
   recentEvent?: HexGameEvent;
+  pendingDisaster?: {
+    casterId: string;
+    targetId: string;
+    targetSlotIndex: number;
+    card: HexCard;
+    timestamp: number;
+  } | null;
 }
 
 export type HexEffectsAction =
   | { type: 'TREAT_HEX'; slotIndex: number; cardId: string }
-  | { type: 'INFLICT_HEX'; targetPlayerId: string; targetSlotIndex: number; cardId: string }
+  | { type: 'INFLICT_HEX'; targetPlayerId: string; targetSlotIndex?: number; cardId: string }
+  | { type: 'DISASTER_TARGET'; targetPlayerId: string; targetSlotIndex: number; cardId: string }
+  | { type: 'RESPOND_JINX'; useJinx: boolean; jinxCardId?: string }
+  | { type: 'ALCHEMY_DRAW'; cardIds: string[] }
+  | { type: 'ALCHEMY_STEAL_REMEDY'; cardIds: string[]; targetPlayerId: string; targetSlotIndex: number }
   | { type: 'PLAY_SPELL'; cardId: string; targetPlayerId?: string; targetSlotIndex?: number; chosenHexCardId?: string }
   | { type: 'DISCARD_AND_DRAW'; cardIds: string[] }
+  | { type: 'DISCARD_EXCESS'; cardIds: string[] }
   | { type: 'END_TURN' };
 

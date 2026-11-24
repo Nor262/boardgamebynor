@@ -487,7 +487,14 @@ export interface ActiveGameplayDebuff {
 }
 
 export function getPlayerActiveDebuffs(
-  player: { isJinxed?: boolean; cannotDrawCards?: boolean; panicDiscarded?: boolean; shadow?: { treatedBy: any }[] },
+  player: {
+    isJinxed?: boolean;
+    cannotDrawCards?: boolean;
+    skipNextDraw?: boolean;
+    loseNextAction?: boolean;
+    panicDiscarded?: boolean;
+    shadow?: { treatedBy: any }[];
+  },
   recentEvent?: {
     id: string;
     card: HexCard;
@@ -515,16 +522,29 @@ export function getPlayerActiveDebuffs(
   }
 
   // 2. Hiệu ứng cấm rút bài trực tiếp
-  if (player.cannotDrawCards) {
+  if (player.cannotDrawCards || player.skipNextDraw) {
     debuffs.push({
       id: 'outbreak_no_draw',
-      name: 'PHONG TỎA RÚT BÀI (OUTBREAK)',
+      name: 'PHONG TỎA RÚT BÀI',
       shortTag: 'KHÔNG THỂ RÚT BÀI',
       emoji: '☣️',
       badgeStyle: 'bg-amber-950 text-amber-300 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.6)] animate-pulse',
-      gameplayRule: 'Dịch bệnh phong tỏa! Người chơi không thể rút thêm bài mới từ chồng bài chung.',
-      resolution: 'Giải tỏa sau khi kết thúc lượt đi.',
+      gameplayRule: 'Bị phong tỏa! Không thể rút 2 lá bài ở đầu lượt kế tiếp.',
+      resolution: 'Giải tỏa sau khi bắt đầu lượt kế tiếp.',
       type: 'DISASTER',
+    });
+  }
+
+  if (player.loseNextAction) {
+    debuffs.push({
+      id: 'stone_lose_action',
+      name: 'HÓA ĐÁ TỨ CHI',
+      shortTag: 'MẤT 1 HÀNH ĐỘNG',
+      emoji: '🪨',
+      badgeStyle: 'bg-stone-900 text-stone-300 border-stone-400 shadow-[0_0_12px_rgba(168,162,158,0.5)] animate-pulse',
+      gameplayRule: 'Bị hóa đá! Chỉ còn 1 hành động thay vì 2 ở lượt kế tiếp.',
+      resolution: 'Giải tỏa sau khi bắt đầu lượt kế tiếp.',
+      type: 'RESTRICTION',
     });
   }
 

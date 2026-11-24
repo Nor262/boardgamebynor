@@ -28,6 +28,111 @@ function drawFromDeck(state: HexEffectsGameState, count: number): HexCard[] {
   return drawn;
 }
 
+function applyDisasterEffect(
+  state: HexEffectsGameState,
+  caster: PlayerHexState,
+  victim: PlayerHexState,
+  slotIndex: number,
+  disasterCard: HexCard
+): string {
+  const targetSlot = victim.shadow[slotIndex] || victim.shadow.find((s) => s.treatedBy === null) || victim.shadow[0];
+  const punishment = targetSlot?.hex.disasterPunishment || 'DISCARD_1';
+  let detail = '';
+
+  // Luật Snake Oil: Bị hủy/bỏ nếu Thảm họa nhắm vào một lá Lời nguyền khác của bạn
+  let snakeOilMsg = '';
+  victim.shadow.forEach((s, idx) => {
+    if (idx !== slotIndex && s.treatedBy && s.treatedBy.curesHex === 'ANY') {
+      const destroyed = s.treatedBy;
+      s.treatedBy = null;
+      state.discardPile.push(destroyed);
+      snakeOilMsg = ` (Dầu Rắn Vạn Năng tại Ô ${idx + 1} bị thiêu rụi!)`;
+    }
+  });
+
+  switch (punishment) {
+    case 'DISCARD_1': {
+      if (victim.hand.length > 0) {
+        const rIdx = Math.floor(Math.random() * victim.hand.length);
+        state.discardPile.push(victim.hand.splice(rIdx, 1)[0]);
+      }
+      detail = `[${victim.nickname}] phải bỏ 1 lá bài ngẫu nhiên trên tay.`;
+      break;
+    }
+    case 'DISCARD_2': {
+      let count = 0;
+      for (let i = 0; i < 2 && victim.hand.length > 0; i++) {
+        const rIdx = Math.floor(Math.random() * victim.hand.length);
+        state.discardPile.push(victim.hand.splice(rIdx, 1)[0]);
+        count++;
+      }
+      detail = `[${victim.nickname}] phải bỏ ${count} lá bài ngẫu nhiên trên tay.`;
+      break;
+    }
+    case 'STEAL_1': {
+      if (victim.hand.length > 0) {
+        const rIdx = Math.floor(Math.random() * victim.hand.length);
+        const stolen = victim.hand.splice(rIdx, 1)[0];
+        caster.hand.push(stolen);
+        detail = `[${caster.nickname}] cướp 1 lá bài từ tay [${victim.nickname}].`;
+      } else {
+        detail = `[${victim.nickname}] không còn bài trên tay để cướp.`;
+      }
+      break;
+    }
+    case 'SKIP_DRAW': {
+      victim.skipNextDraw = true;
+      detail = `[${victim.nickname}] bị phong tỏa: KHÔNG THỂ rút bài ở đầu lượt kế tiếp!`;
+      break;
+    }
+    case 'DISCARD_TO_1': {
+      while (victim.hand.length > 1) {
+        const rIdx = Math.floor(Math.random() * victim.hand.length);
+        state.discardPile.push(victim.hand.splice(rIdx, 1)[0]);
+      }
+      detail = `[${victim.nickname}] hoảng loạn, phải bỏ hết bài trên tay chỉ giữ lại 1 lá!`;
+      break;
+    }
+    case 'LOSE_ACTION': {
+      victim.loseNextAction = true;
+      detail = `[${victim.nickname}] bị hóa đá: mất 1 hành động ở lượt kế tiếp!`;
+      break;
+    }
+    case 'CASTER_DRAW_2': {
+      const drawn = drawFromDeck(state, 2);
+      caster.hand.push(...drawn);
+      detail = `[${caster.nickname}] được rút thêm 2 lá bài!`;
+      break;
+    }
+    case 'DESTROY_REMEDY': {
+      const treatedSlot = victim.shadow.find((s) => s.treatedBy !== null);
+      if (treatedSlot && treatedSlot.treatedBy) {
+        const destroyed = treatedSlot.treatedBy;
+        treatedSlot.treatedBy = null;
+        state.discardPile.push(destroyed);
+        detail = `Phương thuốc [${destroyed.name}] của [${victim.nickname}] bị phá hủy!`;
+      } else {
+        detail = `[${victim.nickname}] chưa có Phương thuốc nào để phá hủy.`;
+      }
+      break;
+    }
+  }
+
+  const fullMsg = `🌋 Thảm họa giáng xuống [${targetSlot?.hex.name || 'Lời nguyền'}] của [${victim.nickname}]: ${detail}${snakeOilMsg}`;
+  state.recentEvent = {
+    id: `evt_${Date.now()}_${Math.random()}`,
+    card: disasterCard,
+    actionType: 'DISASTER',
+    actorNickname: caster.nickname,
+    targetNickname: victim.nickname,
+    title: 'THẢM HỌA BÙNG NỔ!',
+    description: fullMsg,
+    timestamp: Date.now(),
+  };
+
+  return fullMsg;
+}
+
 export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffectsAction> = {
   metadata: {
     id: 'hex-effect',
@@ -114,15 +219,27 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
 
   validateAction(state: HexEffectsGameState, playerId: string, action: HexEffectsAction): boolean {
     if (state.winnerId) return false;
+
+    // Nếu đang có Thảm họa chờ phản đòn Jinx: chỉ nạn nhân mới được phản hồi RESPOND_JINX (ngoài lượt)
+    if (state.pendingDisaster) {
+      if (action.type !== 'RESPOND_JINX') return false;
+      if (state.pendingDisaster.targetId !== playerId) return false;
+      const target = state.players[playerId];
+      if (!target) return false;
+      if (action.useJinx) {
+        return target.hand.some((c) => c.spellEffect === 'JINX_SILENCE');
+      }
+      return true;
+    }
+
     if (state.currentTurnPlayerId !== playerId) return false;
-    if (state.actionsLeft <= 0 && action.type !== 'END_TURN') return false;
+    if (state.actionsLeft <= 0 && action.type !== 'END_TURN' && action.type !== 'DISCARD_EXCESS') return false;
 
     const player = state.players[playerId];
     if (!player) return false;
 
     switch (action.type) {
       case 'TREAT_HEX': {
-        // Nếu người chơi đang bị yểm bùa JINX thì không thể dùng bất kỳ Thuốc Giải nào
         if (player.isJinxed) return false;
 
         const card = player.hand.find((c) => c.id === action.cardId);
@@ -130,7 +247,6 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
         if (action.slotIndex < 0 || action.slotIndex >= player.shadow.length) return false;
 
         const slot = player.shadow[action.slotIndex];
-        // Ô này chưa được chữa và thuốc giải phải khớp với loại lời nguyền hoặc là SNAKE OIL (ANY)
         if (slot.treatedBy !== null) return false;
         return card.curesHex === 'ANY' || slot.hex.hexType === card.curesHex;
       }
@@ -143,8 +259,11 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
         const target = state.players[action.targetPlayerId];
         if (!target) return false;
 
-        // Kiểm tra đối thủ có bị ảnh hưởng bởi tác dụng phụ của lời nguyền này không:
-        // Đối thủ có ít nhất 1 bài thuốc giải đang chữa mà có tác dụng phụ này
+        // Luật gốc: Đối thủ chưa từng có Lời nguyền này trong Shadow (kể cả đã chữa)
+        const alreadyHasHex = target.shadow.some((s) => s.hex.hexType === card.hexType);
+        if (alreadyHasHex) return false;
+
+        // Kiểm tra đối thủ có đang dễ tổn thương (vulnerable) từ tác dụng phụ của Phương thuốc đã chơi
         const hasVulnerableSideEffect = target.shadow.some(
           (s) => s.treatedBy && s.treatedBy.sideEffects?.includes(card.hexType!)
         );
@@ -152,24 +271,59 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
         return hasVulnerableSideEffect;
       }
 
+      case 'DISASTER_TARGET': {
+        const card = player.hand.find((c) => c.id === action.cardId);
+        if (!card || card.category !== 'DISASTER') return false;
+        if (action.targetPlayerId === playerId) return false;
+
+        const target = state.players[action.targetPlayerId];
+        if (!target) return false;
+        if (action.targetSlotIndex < 0 || action.targetSlotIndex >= target.shadow.length) return false;
+
+        // Luật gốc: Chọn 1 lá Lời nguyền CHƯA ĐƯỢC CHỮA trước mặt đối thủ
+        return target.shadow[action.targetSlotIndex].treatedBy === null;
+      }
+
+      case 'ALCHEMY_DRAW': {
+        if (!action.cardIds || action.cardIds.length !== 3) return false;
+        const cards = action.cardIds.map((id) => player.hand.find((c) => c.id === id)).filter(Boolean) as HexCard[];
+        if (cards.length !== 3) return false;
+        if (!cards.every((c) => c.category === 'HEX' && c.hexType)) return false;
+        const uniqueTypes = new Set(cards.map((c) => c.hexType));
+        return uniqueTypes.size === 3;
+      }
+
+      case 'ALCHEMY_STEAL_REMEDY': {
+        if (!action.cardIds || action.cardIds.length !== 3) return false;
+        if (action.targetPlayerId === playerId) return false;
+        const cards = action.cardIds.map((id) => player.hand.find((c) => c.id === id)).filter(Boolean) as HexCard[];
+        if (cards.length !== 3) return false;
+        if (!cards.every((c) => c.category === 'REMEDY' && c.curesHex)) return false;
+        const uniqueCures = new Set(cards.map((c) => c.curesHex));
+        if (uniqueCures.size !== 3) return false;
+
+        const target = state.players[action.targetPlayerId];
+        if (!target) return false;
+        if (action.targetSlotIndex < 0 || action.targetSlotIndex >= target.shadow.length) return false;
+        return target.shadow[action.targetSlotIndex].treatedBy !== null;
+      }
+
       case 'PLAY_SPELL': {
         const card = player.hand.find((c) => c.id === action.cardId);
-        if (!card || (card.category !== 'SPELL' && card.category !== 'DISASTER')) return false;
+        if (!card || card.category !== 'SPELL') return false;
 
-        if (card.spellEffect === 'JINX_SILENCE') {
-          if (!action.targetPlayerId || action.targetPlayerId === playerId) return false;
-          const target = state.players[action.targetPlayerId];
-          return !!target;
-        }
+        // JINX chỉ chơi ngoài lượt khi bị đánh Thảm họa
+        if (card.spellEffect === 'JINX_SILENCE') return false;
 
         if (card.spellEffect === 'DEUS_HEX_MACHINA') {
           if (!action.targetPlayerId || action.targetPlayerId === playerId) return false;
           const target = state.players[action.targetPlayerId];
           if (!target) return false;
-          if (action.targetSlotIndex !== undefined) {
-            return action.targetSlotIndex >= 0 && action.targetSlotIndex < target.shadow.length;
-          }
-          return target.shadow.length > 0;
+          const hexCard = action.chosenHexCardId
+            ? player.hand.find((c) => c.id === action.chosenHexCardId && c.category === 'HEX')
+            : player.hand.find((c) => c.category === 'HEX');
+          if (!hexCard || !hexCard.hexType) return false;
+          return !target.shadow.some((s) => s.hex.hexType === hexCard.hexType);
         }
 
         if (card.spellEffect === 'STEAL_CARD') {
@@ -202,8 +356,15 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
         return action.cardIds.every((id) => player.hand.some((c) => c.id === id));
       }
 
+      case 'DISCARD_EXCESS': {
+        if (player.hand.length <= 6) return false;
+        const excess = player.hand.length - 6;
+        if (!action.cardIds || action.cardIds.length !== excess) return false;
+        return action.cardIds.every((id) => player.hand.some((c) => c.id === id));
+      }
+
       case 'END_TURN':
-        return true;
+        return player.hand.length <= 6;
 
       default:
         return false;
@@ -247,27 +408,13 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
         const hexCard = player.hand.splice(cardIdx, 1)[0];
         const target = nextState.players[action.targetPlayerId];
 
-        // Tìm thuốc giải của đối thủ gây ra tác dụng phụ này và phá hủy nó
-        const vulnerableSlot = target.shadow.find(
-          (s) => s.treatedBy && s.treatedBy.sideEffects?.includes(hexCard.hexType!)
-        );
-
-        if (vulnerableSlot && vulnerableSlot.treatedBy) {
-          const removedRemedy = vulnerableSlot.treatedBy;
-          vulnerableSlot.treatedBy = null;
-          nextState.discardPile.push(removedRemedy);
-          nextState.discardPile.push(hexCard);
-
-          logMsg = `[${player.nickname}] lợi dụng tác dụng phụ của [${target.nickname}], gieo [${hexCard.name}] phá hủy thuốc giải [${removedRemedy.name}]!`;
-        } else {
-          // Thêm lời nguyền vào slot mới
-          target.shadow.push({
-            slotId: `slot_${target.playerId}_${Date.now()}`,
-            hex: hexCard,
-            treatedBy: null,
-          });
-          logMsg = `[${player.nickname}] đã gieo thêm lời nguyền [${hexCard.name}] vào Vùng Bóng Tối của [${target.nickname}]!`;
-        }
+        // Luật gốc: Đặt thêm 1 lá Lời nguyền từ tay lên Shadow của đối thủ
+        target.shadow.push({
+          slotId: `slot_${target.playerId}_${Date.now()}`,
+          hex: hexCard,
+          treatedBy: null,
+        });
+        logMsg = `[${player.nickname}] lợi dụng di chứng dược liệu của [${target.nickname}], ném thêm lời nguyền [${hexCard.name}] vào Vùng Bóng Tối của họ!`;
 
         nextState.actionsLeft -= 1;
         nextState.recentEvent = {
@@ -324,13 +471,13 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
               }
             }
 
-            if (targetSlot.treatedBy) {
-              nextState.discardPile.push(targetSlot.treatedBy);
-            }
-            targetSlot.treatedBy = null;
-            targetSlot.hex = inflictedHex;
+            target.shadow.push({
+              slotId: `slot_${target.playerId}_${Date.now()}`,
+              hex: inflictedHex,
+              treatedBy: null,
+            });
 
-            logMsg = `[${player.nickname}] kích hoạt [${actionCard.name}]! Thần Cơ cổ đại cưỡng chế gieo lời nguyền [${inflictedHex.name}] vào Ô ${sIdx + 1} của [${target.nickname}] (phá hủy mọi phòng ngự)!`;
+            logMsg = `[${player.nickname}] kích hoạt [${actionCard.name}]! Cưỡng chế nhét lời nguyền [${inflictedHex.name}] vào Vùng Bóng Tối của [${target.nickname}] (bỏ qua điều kiện di chứng)!`;
           }
         } else if (actionCard.spellEffect === 'STEAL_CARD' && action.targetPlayerId) {
           const target = nextState.players[action.targetPlayerId];
@@ -420,6 +567,96 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
         break;
       }
 
+      case 'DISASTER_TARGET': {
+        const cardIdx = player.hand.findIndex((c) => c.id === action.cardId);
+        const disasterCard = player.hand.splice(cardIdx, 1)[0];
+        nextState.discardPile.push(disasterCard);
+        nextState.actionsLeft -= 1;
+
+        const target = nextState.players[action.targetPlayerId];
+        const targetSlot = target.shadow[action.targetSlotIndex];
+        const hasJinx = target.hand.some((c) => c.spellEffect === 'JINX_SILENCE');
+
+        if (hasJinx) {
+          nextState.pendingDisaster = {
+            casterId: playerId,
+            targetId: action.targetPlayerId,
+            targetSlotIndex: action.targetSlotIndex,
+            card: disasterCard,
+            timestamp: Date.now(),
+          };
+          logMsg = `[${player.nickname}] kích hoạt Thảm họa lên [${targetSlot.hex.name}] của [${target.nickname}]! Đang chờ [${target.nickname}] phản ứng (có thể dùng Jinx phản đòn)...`;
+        } else {
+          logMsg = applyDisasterEffect(nextState, player, target, action.targetSlotIndex, disasterCard);
+        }
+        break;
+      }
+
+      case 'RESPOND_JINX': {
+        const pending = nextState.pendingDisaster;
+        if (pending) {
+          const caster = nextState.players[pending.casterId];
+          const target = nextState.players[pending.targetId];
+          if (action.useJinx) {
+            const jinxIdx = target.hand.findIndex((c) => c.spellEffect === 'JINX_SILENCE');
+            if (jinxIdx !== -1) {
+              const jinxCard = target.hand.splice(jinxIdx, 1)[0];
+              nextState.discardPile.push(jinxCard);
+            }
+            const reflectedMsg = applyDisasterEffect(nextState, target, caster, pending.targetSlotIndex, pending.card);
+            logMsg = `🎭 [${target.nickname}] tung JINX PHẢN ĐÒN ngoài lượt! ${reflectedMsg}`;
+          } else {
+            logMsg = applyDisasterEffect(nextState, caster, target, pending.targetSlotIndex, pending.card);
+          }
+          nextState.pendingDisaster = null;
+        }
+        break;
+      }
+
+      case 'ALCHEMY_DRAW': {
+        action.cardIds.forEach((id) => {
+          const idx = player.hand.findIndex((c) => c.id === id);
+          if (idx !== -1) {
+            nextState.discardPile.push(player.hand.splice(idx, 1)[0]);
+          }
+        });
+        const drawn = drawFromDeck(nextState, 1);
+        player.hand.push(...drawn);
+        nextState.actionsLeft -= 1;
+        logMsg = `[${player.nickname}] thực hiện Giả kim: bỏ 3 lá Lời nguyền khác nhau để rút thêm 1 lá bài!`;
+        break;
+      }
+
+      case 'ALCHEMY_STEAL_REMEDY': {
+        action.cardIds.forEach((id) => {
+          const idx = player.hand.findIndex((c) => c.id === id);
+          if (idx !== -1) {
+            nextState.discardPile.push(player.hand.splice(idx, 1)[0]);
+          }
+        });
+        const target = nextState.players[action.targetPlayerId];
+        const targetSlot = target.shadow[action.targetSlotIndex];
+        if (targetSlot && targetSlot.treatedBy) {
+          const stolenRemedy = targetSlot.treatedBy;
+          targetSlot.treatedBy = null;
+          player.hand.push(stolenRemedy);
+          logMsg = `[${player.nickname}] thực hiện Giả kim: bỏ 3 lá Phương thuốc khác nhau để cướp [${stolenRemedy.name}] từ [${target.nickname}]!`;
+        }
+        nextState.actionsLeft -= 1;
+        break;
+      }
+
+      case 'DISCARD_EXCESS': {
+        action.cardIds.forEach((id) => {
+          const idx = player.hand.findIndex((c) => c.id === id);
+          if (idx !== -1) {
+            nextState.discardPile.push(player.hand.splice(idx, 1)[0]);
+          }
+        });
+        logMsg = `[${player.nickname}] đã bỏ ${action.cardIds.length} lá bài thừa để giữ đúng giới hạn 6 lá trên tay.`;
+        break;
+      }
+
       case 'END_TURN': {
         logMsg = `[${player.nickname}] đã kết thúc lượt của mình.`;
         nextState.actionsLeft = 0;
@@ -444,8 +681,8 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
     }
 
     // Nếu hết hành động, tự động chuyển lượt cho người chơi tiếp theo
-    if (nextState.actionsLeft <= 0) {
-      // Hóa giải bùa JINX cho người chơi vừa hoàn thành lượt của họ
+    // Nếu hết hành động, không có Thảm họa chờ phản đòn và bài trên tay <= 6 lá -> chuyển lượt
+    if (nextState.actionsLeft <= 0 && !nextState.pendingDisaster && player.hand.length <= 6) {
       player.isJinxed = false;
 
       const currentIndex = nextState.turnOrder.indexOf(nextState.currentTurnPlayerId);
@@ -453,16 +690,27 @@ export const HexEffectsGamePlugin: BoardGamePlugin<HexEffectsGameState, HexEffec
       const nextPlayerId = nextState.turnOrder[nextIndex];
 
       nextState.currentTurnPlayerId = nextPlayerId;
-      nextState.actionsLeft = 2;
       nextState.turnCount += 1;
 
-      // Người tiếp theo rút 2 lá bài vào đầu lượt
-      const drawn = drawFromDeck(nextState, 2);
-      nextState.players[nextPlayerId].hand.push(...drawn);
-
       const nextPlayer = nextState.players[nextPlayerId];
-      const jinxNotice = nextPlayer.isJinxed ? ' [ĐANG BỊ YỂM BÙA JINX: CẤM DÙNG THUỐC GIẢI TRONG LƯỢT NÀY!]' : '';
-      const turnStartMsg = `Đến lượt [${nextPlayer.nickname}]. Đã rút 2 lá bài (Còn 2 hành động)${jinxNotice}.`;
+
+      if (nextPlayer.loseNextAction) {
+        nextState.actionsLeft = 1;
+        nextPlayer.loseNextAction = false;
+      } else {
+        nextState.actionsLeft = 2;
+      }
+
+      let drawNotice = "Đã rút 2 lá bài";
+      if (nextPlayer.skipNextDraw) {
+        nextPlayer.skipNextDraw = false;
+        drawNotice = "Bị phong tỏa KHÔNG THỂ rút bài lượt này";
+      } else {
+        const drawn = drawFromDeck(nextState, 2);
+        nextPlayer.hand.push(...drawn);
+      }
+
+      const turnStartMsg = `Đến lượt [${nextPlayer.nickname}]. ${drawNotice} (Còn ${nextState.actionsLeft} hành động).`;
       nextState.gameLogs.push(turnStartMsg);
     }
 
