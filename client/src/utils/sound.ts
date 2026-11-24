@@ -80,6 +80,35 @@ class SoundEngine {
   }
 
   /**
+   * Âm thanh báo đến lượt người chơi (Turn Notification Chime)
+   */
+  public playTurnNotify() {
+    if (this.isMuted) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+      const notes = [523.25, 659.25]; // C5 -> E5
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+        gain.gain.setValueAtTime(0.001, now + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + idx * 0.1 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.22);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.1);
+        osc.stop(now + idx * 0.1 + 0.24);
+      });
+    } catch (e) {
+      console.warn('Audio play error', e);
+    }
+  }
+
+  /**
    * Tiếng đồng xu kim loại nảy ("Clink! Clink!") cực kỳ vui tai
    */
   public playCoinClink() {

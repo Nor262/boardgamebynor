@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRoomStore } from '@/stores/room-store';
 import { Avatar } from '@/components/common/Avatar';
 import { sound } from '@/utils/sound';
@@ -77,6 +77,15 @@ export function JaipurBoard() {
   };
 
   const isMyTurn = !isSpectator && currentTurnPlayerId === me.id;
+  const prevIsMyTurnRef = useRef<boolean>(false);
+
+  // Phát âm thanh báo hiệu mỗi khi chuyển sang lượt của bạn
+  useEffect(() => {
+    if (isMyTurn && !prevIsMyTurnRef.current && !gameData?.isRoundOver) {
+      sound.playTurnNotify();
+    }
+    prevIsMyTurnRef.current = isMyTurn;
+  }, [isMyTurn, gameData?.isRoundOver]);
 
   const marketCamelsCount = gameData.market.filter((c: any) => c.type === 'CAMEL').length;
 
@@ -224,8 +233,51 @@ export function JaipurBoard() {
   // Danh sách lạc đà trực quan của người chơi (tối đa hiển thị trực quan)
   const displayCamelsCount = myState.camels || 0;
 
+  const latestLog =
+    Array.isArray(gameData.gameLogs) && gameData.gameLogs.length > 0
+      ? gameData.gameLogs[gameData.gameLogs.length - 1]
+      : 'Trận đấu Jaipur đã bắt đầu!';
+
   return (
-    <div className="flex-1 w-full h-full flex flex-col justify-between p-2 sm:p-2.5 text-white select-none max-w-7xl mx-auto gap-2 overflow-hidden">
+    <div className="flex-1 w-full h-full flex flex-col p-1.5 sm:p-2 text-white select-none max-w-[1440px] mx-auto gap-1.5 overflow-hidden">
+      {/* ========================================================================= */}
+      {/* 0. THANH TRẠNG THÁI LƯỢT CHƠI & HÀNH ĐỘNG VỪA DIỄN RA */}
+      {/* ========================================================================= */}
+      <div
+        className={`rounded-xl border px-3 py-1 flex flex-wrap items-center justify-between gap-2 flex-shrink-0 shadow-md transition-all ${
+          isMyTurn && !gameData.isRoundOver
+            ? 'border-emerald-400/80 bg-gradient-to-r from-emerald-950/90 via-teal-900/80 to-emerald-950/90 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+            : 'border-slate-700/80 bg-slate-900/90'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          {gameData.isRoundOver ? (
+            <span className="font-mono font-black text-xs text-amber-300 uppercase">
+              🏁 HIỆP {gameData.round} ĐÃ KẾT THÚC
+            </span>
+          ) : isMyTurn ? (
+            <span className="font-mono font-black text-xs sm:text-sm text-emerald-300 uppercase flex items-center gap-1.5 animate-pulse">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span>ĐẾN LƯỢT BẠN! (Chọn bài ở Chợ hoặc Bán bài trên tay)</span>
+            </span>
+          ) : (
+            <span className="font-mono font-bold text-xs text-amber-300/90 uppercase flex items-center gap-1.5">
+              <span>⏳ ĐANG CHỜ LƯỢT CỦA [{opponentState?.nickname || 'ĐỐI THỦ'}]...</span>
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 text-[11px] font-mono text-amber-200/95 bg-black/40 px-2.5 py-0.5 rounded-lg border border-amber-500/30 max-w-full sm:max-w-[55%] truncate" title={latestLog}>
+          <span className="text-amber-400 font-bold flex-shrink-0">📜 Vừa diễn ra:</span>
+          <span className="truncate">{latestLog}</span>
+        </div>
+      </div>
+
+      {/* BỐ CỤC 2 CỘT: BÊN TRÁI (ĐỐI THỦ + CHỢ + BÀI TRÊN TAY) | BÊN PHẢI (CHỒNG XU ĐIỂM) */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_310px] gap-2">
+        {/* CỘT TRÁI: KHU VỰC CHƠI CHÍNH */}
+        <div className="flex flex-col justify-between gap-1.5 min-w-0 min-h-0">
+
       {/* ========================================================================= */}
       {/* 1. KHU VỰC ĐỐI THỦ (OPPONENT HEADER BAR) */}
       {/* ========================================================================= */}
@@ -384,60 +436,6 @@ export function JaipurBoard() {
             </button>
           </div>
         )}
-
-        {/* Bàn Đồng Xu Điểm Số & Xu Thưởng */}
-        <div className="bg-black/50 rounded-2xl p-3 sm:p-4 border border-amber-500/30 flex flex-col gap-3 shadow-inner">
-          <div className="flex items-center justify-between text-xs font-mono font-black uppercase tracking-wider text-amber-300 border-b border-white/10 pb-2">
-            <span className="flex items-center gap-1.5">
-              <Coins className="w-4 h-4 text-amber-400" />
-              CÁC CHỒNG XU ĐIỂM HOÀNG GIA (BÁN SỚM ĐƯỢC GIÁ CAO HƠN)
-            </span>
-            <span className="text-[11px] text-slate-400 normal-case font-medium hidden md:inline">
-              Hiệp đấu kết thúc ngay khi 3 chồng xu cạn hết
-            </span>
-          </div>
-
-          {/* 6 Chồng Xu Hàng Hóa - Hiển thị số lượng to rõ */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 pt-1">
-            {(['DIAMOND', 'GOLD', 'SILVER', 'CLOTH', 'SPICE', 'LEATHER'] as GoodsType[]).map(type => (
-              <CoinStack key={type} type={type} tokens={gameData.goodsTokens[type] || []} />
-            ))}
-          </div>
-
-          {/* 3 Chồng Xu Thưởng Combo - Số lượng to rõ */}
-          <div className="flex flex-wrap items-center justify-between pt-3 border-t border-white/10 text-xs gap-3">
-            <span className="text-slate-300 font-mono font-bold flex items-center gap-1.5 uppercase">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>XU THƯỞNG BÁN COMBO:</span>
-            </span>
-
-            <div className="flex items-center gap-2.5 font-mono">
-              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-purple-950/80 border border-purple-500/50 shadow-md">
-                <img src="/assets/tokens/bonus_3.png" alt="Bonus 3" className="w-7 h-7 rounded-full border border-amber-400" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-purple-200 uppercase">Combo 3 lá</span>
-                  <span className="text-xs font-black text-purple-300">CÒN {gameData.bonusTokens.bonus3.length} XU</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-indigo-950/80 border border-indigo-500/50 shadow-md">
-                <img src="/assets/tokens/bonus_4.png" alt="Bonus 4" className="w-7 h-7 rounded-full border border-amber-400" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-indigo-200 uppercase">Combo 4 lá</span>
-                  <span className="text-xs font-black text-indigo-300">CÒN {gameData.bonusTokens.bonus4.length} XU</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-amber-950/80 border border-amber-500/50 shadow-md">
-                <img src="/assets/tokens/bonus_5.png" alt="Bonus 5" className="w-7 h-7 rounded-full border border-amber-400" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-amber-200 uppercase">Combo 5+ lá</span>
-                  <span className="text-xs font-black text-amber-300">CÒN {gameData.bonusTokens.bonus5.length} XU</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* ========================================================================= */}
@@ -654,6 +652,64 @@ export function JaipurBoard() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+        </div>
+        {/* KẾT THÚC CỘT TRÁI */}
+
+        {/* CỘT PHẢI: BÀN ĐỒNG XU ĐIỂM SỐ & XU THƯỞNG COMBO */}
+        <div className="rounded-xl border border-amber-500/30 bg-gradient-to-b from-[#131b29] via-[#0e1420] to-[#0a0f18] p-2.5 flex flex-col justify-between gap-2 shadow-xl">
+          <div className="flex items-center justify-between text-[11px] font-mono font-black uppercase tracking-wider text-amber-300 border-b border-white/10 pb-1.5">
+            <span className="flex items-center gap-1.5">
+              <Coins className="w-4 h-4 text-amber-400" />
+              <span>CHỒNG XU HOÀNG GIA</span>
+            </span>
+            <span className="text-[10px] text-slate-400 normal-case font-medium">
+              3 chồng cạn = hết hiệp
+            </span>
+          </div>
+
+          {/* 6 Chồng Xu Hàng Hóa (2x3) */}
+          <div className="grid grid-cols-3 lg:grid-cols-2 gap-2">
+            {(['DIAMOND', 'GOLD', 'SILVER', 'CLOTH', 'SPICE', 'LEATHER'] as GoodsType[]).map((type) => (
+              <CoinStack key={type} type={type} tokens={gameData.goodsTokens[type] || []} />
+            ))}
+          </div>
+
+          {/* 3 Chồng Xu Thưởng Combo */}
+          <div className="flex flex-col gap-1.5 pt-2 border-t border-white/10 text-xs">
+            <span className="text-slate-300 font-mono font-bold flex items-center gap-1.5 uppercase text-[10px]">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>XU THƯỞNG BÁN COMBO:</span>
+            </span>
+
+            <div className="grid grid-cols-3 lg:grid-cols-1 gap-1.5 font-mono">
+              <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-purple-950/80 border border-purple-500/50 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <img src="/assets/tokens/bonus_3.png" alt="Bonus 3" className="w-5 h-5 rounded-full border border-amber-400" />
+                  <span className="text-[10px] font-black text-purple-200 uppercase">Combo 3 lá</span>
+                </div>
+                <span className="text-[10px] font-black text-purple-300">{gameData.bonusTokens.bonus3.length} xu</span>
+              </div>
+
+              <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-indigo-950/80 border border-indigo-500/50 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <img src="/assets/tokens/bonus_4.png" alt="Bonus 4" className="w-5 h-5 rounded-full border border-amber-400" />
+                  <span className="text-[10px] font-black text-indigo-200 uppercase">Combo 4 lá</span>
+                </div>
+                <span className="text-[10px] font-black text-indigo-300">{gameData.bonusTokens.bonus4.length} xu</span>
+              </div>
+
+              <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-amber-950/80 border border-amber-500/50 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <img src="/assets/tokens/bonus_5.png" alt="Bonus 5" className="w-5 h-5 rounded-full border border-amber-400" />
+                  <span className="text-[10px] font-black text-amber-200 uppercase">Combo 5+ lá</span>
+                </div>
+                <span className="text-[10px] font-black text-amber-300">{gameData.bonusTokens.bonus5.length} xu</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
