@@ -97,7 +97,12 @@ export const useRoomStore = create<RoomStoreState>((set, get) => ({
                     room.spectators.find(p => p.id === currentMe.id) ||
                     currentMe;
       }
-      set({ room, me: updatedMe });
+      const prevStatus = get().room?.status;
+      set({
+        room,
+        me: updatedMe,
+        ...(prevStatus === 'IN_GAME' && room.status === 'WAITING' ? { error: null } : {}),
+      });
     });
 
     socket.on(SOCKET_EVENTS.ROOM_KICKED, ({ targetPlayerId }: { targetPlayerId: string }) => {

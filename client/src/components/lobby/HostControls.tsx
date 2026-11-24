@@ -102,11 +102,11 @@ export function HostControls() {
         </div>
 
         {isHost && (
-          <div className="flex gap-2 items-center mt-1">
+          <div className="flex gap-2 items-center mt-1 min-w-0 w-full">
             <select
               value={room.selectedGameId}
               onChange={(e) => setGame(e.target.value)}
-              className="flex-1 bg-white border-2 border-black px-3 py-2 text-xs font-mono font-black uppercase text-black focus:outline-none focus:border-[#FF3000] rounded-none cursor-pointer"
+              className="flex-1 min-w-0 w-full truncate bg-white border-2 border-black px-3 py-2 text-xs font-mono font-black uppercase text-black focus:outline-none focus:border-[#FF3000] rounded-none cursor-pointer"
             >
               {availableGames.map(game => (
                 <option key={game.id} value={game.id}>
@@ -117,7 +117,7 @@ export function HostControls() {
             <button
               type="button"
               onClick={() => setIsGameMenuOpen(true)}
-              className="px-3 py-2 bg-black hover:bg-[#FF3000] text-white font-mono font-black text-xs uppercase tracking-wider border-2 border-black transition-colors cursor-pointer flex items-center gap-1.5"
+              className="flex-shrink-0 px-3 py-2 bg-black hover:bg-[#FF3000] text-white font-mono font-black text-xs uppercase tracking-wider border-2 border-black transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
               <span>MENU</span>
