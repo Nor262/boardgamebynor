@@ -14,7 +14,8 @@ const GOODS_TRANSLATION: Record<GoodsType, string> = {
 function setupRound(
   players: [Player, Player],
   existingSeals: Record<string, number> = {},
-  roundNumber: number = 1
+  roundNumber: number = 1,
+  startingPlayerId?: string
 ): JaipurGameState {
   const fullDeck = createJaipurDeck();
 
@@ -67,17 +68,22 @@ function setupRound(
     };
   });
 
+  const turnOrder: [string, string] = [players[0].id, players[1].id];
+  const winnerIdx = startingPlayerId ? turnOrder.indexOf(startingPlayerId) : -1;
+  const firstTurnIndex = winnerIdx !== -1 ? winnerIdx : (Math.random() < 0.5 ? 0 : 1);
+  const firstPlayerName = players[firstTurnIndex].nickname;
+
   return {
     deck: remainingDeck,
     market: initialMarket,
     goodsTokens: createInitialGoodsTokens(),
     bonusTokens: createBonusTokens(),
     players: playerStates,
-    turnOrder: [players[0].id, players[1].id],
-    currentTurnIndex: 0,
+    turnOrder,
+    currentTurnIndex: firstTurnIndex,
     round: roundNumber,
     isRoundOver: false,
-    gameLogs: [`--- Bắt đầu Hiệp ${roundNumber} của trận đấu Jaipur! ---`],
+    gameLogs: [`--- Bắt đầu Hiệp ${roundNumber} của trận đấu Jaipur! [${firstPlayerName}] đi trước. ---`],
   };
 }
 
@@ -191,11 +197,6 @@ export const JaipurGamePlugin: BoardGamePlugin<JaipurGameState, JaipurAction> = 
       if (firstType === 'CAMEL') return false; // Không được bán lạc đà
       if (selectedCards.some(c => c.type !== firstType)) return false;
 
-      // Hàng quý (Kim cương, Vàng, Bạc) phải bán từ 2 lá trở lên
-      if (['DIAMOND', 'GOLD', 'SILVER'].includes(firstType) && selectedCards.length < 2) {
-        return false;
-      }
-
       return true;
     }
 
@@ -220,7 +221,8 @@ export const JaipurGamePlugin: BoardGamePlugin<JaipurGameState, JaipurAction> = 
           [p1.playerId]: p1.sealsOfExcellence,
           [p2.playerId]: p2.sealsOfExcellence,
         },
-        nextState.round + 1
+        nextState.round + 1,
+        nextState.roundWinnerId
       );
       return {
         nextState: newRound,

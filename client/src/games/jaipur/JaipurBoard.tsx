@@ -200,13 +200,12 @@ export function JaipurBoard() {
     ? (selectedHandCards[0].type as GoodsType)
     : null;
 
-  const isExpensiveGoods = selectedGoodsType && ['DIAMOND', 'GOLD', 'SILVER'].includes(selectedGoodsType);
+  const isExpensiveGoods = false;
   const canSellSelected =
     isMyTurn &&
     isHandSelectionSameType &&
     selectedMarketIds.length === 0 &&
-    camelsToExchange === 0 &&
-    (!isExpensiveGoods || selectedHandCards.length >= 2);
+    camelsToExchange === 0;
 
   // Điều kiện Đổi hàng:
   // - Chọn ít nhất 2 lá chợ
